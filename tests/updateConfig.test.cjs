@@ -49,7 +49,7 @@ test("release notes and errors are bounded and credential-safe", () => {
 test("a configured packaged build initializes the updater instead of reporting unconfigured", async () => {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), "paperloom-update-test-"));
   const configPath = path.join(directory, "update-config.json");
-  await fs.writeFile(configPath, JSON.stringify({ url: "https://download.example.com/paperloom/windows/" }), "utf8");
+  await fs.writeFile(configPath, JSON.stringify({ url: "https://github.com/GreyWolf1101/PaperLoom-Releases/releases/latest/download/" }), "utf8");
   let receivedOptions;
   const fakeUpdater = new EventEmitter();
   fakeUpdater.checkForUpdates = async () => null;
@@ -74,9 +74,19 @@ test("a configured packaged build initializes the updater instead of reporting u
     assert.equal(status.phase, "idle");
     assert.deepEqual(receivedOptions, {
       provider: "generic",
-      url: "https://download.example.com/paperloom/windows/",
+      url: "https://github.com/GreyWolf1101/PaperLoom-Releases/releases/latest/download/",
       channel: "latest",
     });
+    assert.equal(
+      fakeUpdater.previousBlockmapBaseUrlOverride,
+      "https://github.com/GreyWolf1101/PaperLoom-Releases/releases/download/v0.9.2/",
+    );
+    fakeUpdater.emit("update-available", { version: "0.9.3" });
+    assert.equal(fakeUpdater.disableDifferentialDownload, false);
+    assert.equal(manager.getStatus().downloadMode, "differential");
+    fakeUpdater.emit("update-available", { version: "0.10.0" });
+    assert.equal(fakeUpdater.disableDifferentialDownload, true);
+    assert.equal(manager.getStatus().downloadMode, "full");
   } finally {
     manager.dispose();
     await fs.rm(directory, { recursive: true, force: true });

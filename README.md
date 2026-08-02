@@ -126,7 +126,7 @@ npm run dist:portable
 npm run dist:update
 ```
 
-将生成的安装程序、`.blockmap` 与 `latest.yml` 上传到同一更新目录，并最后上传 `latest.yml`。完整操作与安全要求见 [自动更新发布指南](./自动更新发布指南.md)。
+每个版本都创建独立的 GitHub Release。小版本更新会利用新旧 `.blockmap` 仅下载变化数据；大版本更新会自动改用完整安装包。发布脚本会在小版本发布目录中附带上一版本的 blockmap，请与新安装程序、新 blockmap 一起上传，并最后上传 `latest.yml`。完整操作与安全要求见 [自动更新发布指南](./自动更新发布指南.md)。
 
 AI 功能支持 OpenAI 兼容接口，也可以连接本机 Ollama 或 LM Studio。接口地址、模型与 API Key 在应用设置中填写；API Key 使用 Electron `safeStorage` 加密保存在本机。
 

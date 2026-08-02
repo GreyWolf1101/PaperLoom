@@ -35,6 +35,7 @@ interface UpdateStatusPayload {
   portable: boolean;
   currentVersion: string;
   availableVersion?: string;
+  downloadMode?: "differential" | "full";
   releaseName?: string;
   releaseNotes?: string;
   progress?: number;

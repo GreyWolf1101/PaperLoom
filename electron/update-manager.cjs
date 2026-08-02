@@ -1,6 +1,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { loadUpdateConfig } = require("./update-config.cjs");
+const { getUpdateDownloadMode, githubReleaseDownloadBase } = require("./update-policy.cjs");
 
 function releaseNotesText(value) {
   if (typeof value === "string") return value.trim().slice(0, 8_000);
@@ -122,25 +123,37 @@ function createUpdateManager({
     updater.allowPrerelease = false;
     updater.autoRunAppAfterInstall = true;
     updater.disableWebInstaller = true;
+    updater.disableDifferentialDownload = false;
+    const previousBlockmapBaseUrl = githubReleaseDownloadBase(config.url, app.getVersion());
+    if (previousBlockmapBaseUrl) updater.previousBlockmapBaseUrlOverride = previousBlockmapBaseUrl;
 
     updater.on("checking-for-update", () => update({
       phase: "checking",
       progress: undefined,
       message: tr("正在检查新版本……", "Checking for updates…"),
     }));
-    updater.on("update-available", (info) => update({
-      phase: "available",
-      availableVersion: String(info?.version || ""),
-      releaseName: String(info?.releaseName || ""),
-      releaseNotes: releaseNotesText(info?.releaseNotes),
-      checkedAt: Date.now(),
-      message: tr(`发现新版本 ${info?.version || ""}`, `Version ${info?.version || ""} is available`),
-    }));
+    updater.on("update-available", (info) => {
+      const availableVersion = String(info?.version || "");
+      const downloadMode = getUpdateDownloadMode(app.getVersion(), availableVersion);
+      updater.disableDifferentialDownload = downloadMode === "full";
+      return update({
+        phase: "available",
+        availableVersion,
+        releaseName: String(info?.releaseName || ""),
+        releaseNotes: releaseNotesText(info?.releaseNotes),
+        checkedAt: Date.now(),
+        downloadMode,
+        message: downloadMode === "differential"
+          ? tr(`发现小版本更新 ${availableVersion}，将优先仅下载变化部分。`, `Version ${availableVersion} is available; only changed blocks will be downloaded when possible.`)
+          : tr(`发现大版本更新 ${availableVersion}，将下载完整安装包。`, `Major version ${availableVersion} is available; the full installer will be downloaded.`),
+      });
+    });
     updater.on("update-not-available", () => update({
       phase: "up-to-date",
       availableVersion: undefined,
       releaseName: undefined,
       releaseNotes: undefined,
+      downloadMode: undefined,
       checkedAt: Date.now(),
       message: tr("当前已是最新版本。", "You are using the latest version."),
     }));
@@ -150,7 +163,9 @@ function createUpdateManager({
       transferred: Number(progress?.transferred) || 0,
       total: Number(progress?.total) || 0,
       bytesPerSecond: Number(progress?.bytesPerSecond) || 0,
-      message: tr("正在安全下载更新……", "Downloading the update securely…"),
+      message: snapshot.downloadMode === "differential"
+        ? tr("正在下载差分更新，仅传输变化部分……", "Downloading changed blocks only…")
+        : tr("正在安全下载完整更新……", "Downloading the full update securely…"),
     }));
     updater.on("update-downloaded", (info) => update({
       phase: "downloaded",
@@ -210,7 +225,13 @@ function createUpdateManager({
       return update({ phase: "error", message: tr("请先检查并确认有可用更新。", "Check for an available update first.") });
     }
     try {
-      update({ phase: "downloading", progress: 0, message: tr("正在准备下载更新……", "Preparing update download…") });
+      update({
+        phase: "downloading",
+        progress: 0,
+        message: snapshot.downloadMode === "differential"
+          ? tr("正在准备差分更新……", "Preparing the differential update…")
+          : tr("正在准备完整更新……", "Preparing the full update…"),
+      });
       await updater.downloadUpdate();
     } catch (error) {
       update({ phase: "error", message: tr(`下载更新失败：${safeErrorMessage(error)}`, `Update download failed: ${safeErrorMessage(error)}`) });
