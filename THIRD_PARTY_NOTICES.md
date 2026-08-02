@@ -4,10 +4,14 @@ PaperLoom 采用 GPL-3.0-only 许可证。下列直接依赖仍分别遵循其�
 
 | 组件 | 许可证 |
 | --- | --- |
+| @xmldom/xmldom | MIT |
 | Electron Updater | MIT |
 | JSZip | MIT OR GPL-3.0-or-later |
+| KaTeX | MIT |
 | Lucide React | ISC |
 | Mammoth | BSD-2-Clause |
+| MathLive | MIT |
+| MathML2OMML | LGPL-3.0-or-later |
 | PDF.js | Apache-2.0 |
 | React / React DOM | MIT |
 | React Markdown | MIT |

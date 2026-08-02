@@ -32,6 +32,8 @@ contextBridge.exposeInMainWorld("paperLoom", {
   deleteGalleryCapture: (payload) => ipcRenderer.invoke("gallery:delete", payload),
   deleteGalleryDocument: (documentId) => ipcRenderer.invoke("gallery:delete-document", documentId),
   exportMarkdown: (payload) => ipcRenderer.invoke("export:markdown", payload),
+  copyWordFormula: (payload) => ipcRenderer.invoke("formula:copy-word", payload),
+  exportWordFormula: (payload) => ipcRenderer.invoke("formula:export-word", payload),
   onMenuOpenDocuments: (callback) => {
     const listener = () => callback();
     ipcRenderer.on("menu:open-documents", listener);

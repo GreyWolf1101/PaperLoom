@@ -1,6 +1,6 @@
 {
   "name": "paper-loom",
-  "version": "0.9.2",
+  "version": "0.9.3",
   "private": true,
   "author": "GreyWolf1101",
   "license": "GPL-3.0-only",
@@ -30,10 +30,14 @@
     "test": "npm run test:cjs && npm run test:ts"
   },
   "dependencies": {
+    "@xmldom/xmldom": "^0.8.13",
     "electron-updater": "^6.8.9",
     "jszip": "^3.10.1",
+    "katex": "^0.18.1",
     "lucide-react": "1.24.0",
     "mammoth": "1.12.0",
+    "mathlive": "^0.110.0",
+    "mathml2omml": "^0.5.0",
     "pdfjs-dist": "6.1.200",
     "react": "19.2.6",
     "react-dom": "19.2.6",

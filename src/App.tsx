@@ -3809,7 +3809,15 @@ function App() {
           data-tour="reader-content"
         >
           {workspaceView === "tools" && !isBookMode ? (
-            <UtilitiesWorkspace language={language} />
+            <UtilitiesWorkspace
+              language={language}
+              ensureAIReady={ensureAIReady}
+              requestAI={async (system, user, imageDataUrl) => {
+                if (!window.paperLoom) throw new Error(tr("公式识别需要桌面版 AI 服务", "Formula recognition requires the desktop AI service"));
+                return window.paperLoom.completeAI({ system, user, imageDataUrl });
+              }}
+              notify={setToast}
+            />
           ) : workspaceView === "research" ? (
             <ResearchWorkspace
               language={language}
@@ -4756,9 +4764,9 @@ function OnboardingGuide({
       target: '[data-tour="tools-workspace"]',
       placement: "right" as OnboardingPlacement,
       location: tr("左侧工作区入口的“实用工具”", "Utilities entry in the left workspace navigation"),
-      title: tr("后续小工具会集中放在这里", "Future utilities will live here"),
-      description: tr("实用工具是论文阅读主题下的独立工具箱。目前暂不提供具体工具，后续成熟的小功能会统一从这里进入，不与文献库和研究项目数据混在一起。", "Utilities is a standalone toolbox for the academic reading theme. It is currently empty; future mature tools will appear here without mixing with library or research-project data."),
-      points: [tr("当前仅保留清晰的扩展入口", "A clear extension point is retained"), tr("后续工具会按用途独立排列", "Future tools will be organized by purpose"), tr("小说阅读主题不会显示此入口", "This entry stays hidden in the book-reading theme")],
+      title: tr("从公式工坊开始使用研究工具", "Start with the Formula Workshop"),
+      description: tr("实用工具目前提供公式图片与手写内容识别、自然语言生成、符号编写和 Word 原生公式导出。点击这里进入，识别功能使用你在设置中配置的 AI 模型，编辑与导出在本地完成。", "Utilities now includes formula image and handwriting recognition, natural-language generation, symbol composition and native Word equation export. Recognition uses your configured AI model; editing and export stay local."),
+      points: [tr("上传、拖入或粘贴公式截图", "Upload, drop or paste a formula image"), tr("点击数字、字母和结构编写复杂公式", "Compose complex equations with symbols and structures"), tr("导出可继续编辑的 Word 标准公式", "Export an editable native Word equation")],
     },
     {
       icon: BookOpen,

@@ -1,10 +1,11 @@
-const { app, BrowserWindow, dialog, ipcMain, Menu, net, safeStorage, session, shell } = require("electron");
+const { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, net, safeStorage, session, shell } = require("electron");
 const fs = require("node:fs/promises");
 const path = require("node:path");
 const { createHash, randomUUID } = require("node:crypto");
 const { searchAcademicLiterature } = require("./academic-search.cjs");
 const { searchBooks: searchBookCatalogs } = require("./book-search.cjs");
 const { getCitationGraph, resolveReference } = require("./research-services.cjs");
+const { createEquationDocx, latexToOmml } = require("./formula-export.cjs");
 const { createUpdateManager } = require("./update-manager.cjs");
 const {
   baiduTranslationSignature,
@@ -34,6 +35,15 @@ const ACADEMIC_SEARCH_HOSTS = new Set([
   "www.sciencedirect.com",
   "link.springer.com",
 ]);
+
+function parseAIImageDataUrl(value) {
+  if (!value) return null;
+  const match = String(value).match(/^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=]+)$/);
+  if (!match) throw new Error("公式图片必须是 PNG、JPEG 或 WebP 格式");
+  const data = Buffer.from(match[2], "base64");
+  if (!data.length || data.length > 8 * 1024 * 1024) throw new Error("公式图片不能超过 8 MB");
+  return { dataUrl: value, mediaType: match[1], base64: match[2] };
+}
 async function openAcademicSearchUrl(rawUrl) {
   try {
     const target = new URL(String(rawUrl || ""));
@@ -992,6 +1002,7 @@ async function completeAI(payload) {
   const apiKey = payload.apiKey ?? settings.apiKey;
   const networkMode = payload.networkMode || settings.networkMode || "auto";
   const proxyUrl = payload.proxyUrl ?? settings.proxyUrl ?? "";
+  const image = parseAIImageDataUrl(payload.imageDataUrl);
   if (!baseUrl || !model) throw new Error("请先填写 AI 接口地址和模型名称。");
   if (!apiKey && !/^https?:\/\/(localhost|127\.0\.0\.1)(:|\/)/i.test(baseUrl)) {
     throw new Error("请先在设置中填写 API Key，或连接本地兼容模型。");
@@ -1015,7 +1026,15 @@ async function completeAI(payload) {
           max_tokens: payload.json ? 4096 : 3072,
           temperature: payload.temperature ?? 0.25,
           system: payload.system,
-          messages: [{ role: "user", content: payload.user }],
+          messages: [{
+            role: "user",
+            content: image
+              ? [
+                  { type: "image", source: { type: "base64", media_type: image.mediaType, data: image.base64 } },
+                  { type: "text", text: payload.user },
+                ]
+              : payload.user,
+          }],
         }),
       }, networkMode, proxyUrl);
     } else {
@@ -1033,7 +1052,15 @@ async function completeAI(payload) {
             : {}),
           messages: [
             { role: "system", content: payload.system },
-            { role: "user", content: payload.user },
+            {
+              role: "user",
+              content: image
+                ? [
+                    { type: "text", text: payload.user },
+                    { type: "image_url", image_url: { url: image.dataUrl, detail: "high" } },
+                  ]
+                : payload.user,
+            },
           ],
           ...(payload.json ? { response_format: { type: "json_object" } } : {}),
         }),
@@ -1283,6 +1310,33 @@ app.whenReady().then(() => {
     if (result.canceled || !result.filePath) return false;
     await fs.writeFile(result.filePath, content, "utf8");
     return true;
+  });
+
+  ipcMain.handle("formula:export-word", async (_event, payload) => {
+    const latex = String(payload?.latex || "").trim();
+    const equationNumber = String(payload?.equationNumber || "").trim();
+    const suggestedName = String(payload?.suggestedName || "PaperLoom-公式.docx")
+      .replace(/[<>:"/\\|?*\x00-\x1f]/g, "-")
+      .slice(0, 120);
+    const { buffer } = await createEquationDocx({ latex, equationNumber });
+    const result = await dialog.showSaveDialog(mainWindow, {
+      title: "导出可编辑 Word 公式",
+      defaultPath: suggestedName.toLowerCase().endsWith(".docx") ? suggestedName : `${suggestedName}.docx`,
+      filters: [{ name: "Microsoft Word", extensions: ["docx"] }],
+    });
+    if (result.canceled || !result.filePath) return false;
+    await fs.writeFile(result.filePath, buffer);
+    return true;
+  });
+
+  ipcMain.handle("formula:copy-word", async (_event, payload) => {
+    const latex = String(payload?.latex || "").trim();
+    const { wordMathml } = await latexToOmml(latex);
+    // Microsoft 365 gives this clipboard flavor priority and expects UTF-16LE.
+    // The terminating NUL mirrors the native Windows clipboard representation.
+    const content = Buffer.from(`${wordMathml}\0`, "utf16le");
+    clipboard.writeBuffer("MathML", content);
+    return clipboard.readBuffer("MathML").length >= content.length - 2;
   });
 
   createWindow();

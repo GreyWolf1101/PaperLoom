@@ -198,6 +198,7 @@ interface Window {
       apiKey?: string;
       networkMode?: PaperLoomSettings["networkMode"];
       proxyUrl?: string;
+      imageDataUrl?: string;
     }) => Promise<string>;
     testTranslation: (payload: {
       translationProvider: PaperLoomSettings["translationProvider"];
@@ -252,6 +253,12 @@ interface Window {
     deleteGalleryCapture: (payload: { documentId: string; captureId: string }) => Promise<boolean>;
     deleteGalleryDocument: (documentId: string) => Promise<boolean>;
     exportMarkdown: (payload: { suggestedName: string; content: string }) => Promise<boolean>;
+    copyWordFormula: (payload: { latex: string }) => Promise<boolean>;
+    exportWordFormula: (payload: {
+      latex: string;
+      equationNumber?: string;
+      suggestedName?: string;
+    }) => Promise<boolean>;
     onMenuOpenDocuments: (callback: () => void) => () => void;
     onMenuExportNotes: (callback: () => void) => () => void;
     platform: string;
