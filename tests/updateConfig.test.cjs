@@ -61,6 +61,7 @@ test("a configured packaged build initializes the updater instead of reporting u
     getWindow: () => null,
     getSettings: async () => ({ language: "zh-CN", autoCheckUpdates: false }),
     configPath,
+    platform: "win32",
     createUpdater: (options) => {
       receivedOptions = options;
       return fakeUpdater;

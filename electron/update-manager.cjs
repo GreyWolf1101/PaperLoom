@@ -24,7 +24,14 @@ function defaultCreateUpdater(options) {
   return new NsisUpdater(options);
 }
 
-function createUpdateManager({ app, getWindow, getSettings, configPath, createUpdater = defaultCreateUpdater }) {
+function createUpdateManager({
+  app,
+  getWindow,
+  getSettings,
+  configPath,
+  createUpdater = defaultCreateUpdater,
+  platform = process.platform,
+}) {
   let updater = null;
   let language = "zh-CN";
   let initialized = false;
@@ -33,7 +40,7 @@ function createUpdateManager({ app, getWindow, getSettings, configPath, createUp
     || fs.existsSync(path.join(path.dirname(process.execPath), "使用说明.txt"));
   let snapshot = {
     phase: "idle",
-    supported: process.platform === "win32" && app.isPackaged,
+    supported: platform === "win32" && app.isPackaged,
     configured: false,
     portable,
     currentVersion: app.getVersion(),
