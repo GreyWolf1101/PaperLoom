@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 安全漏洞报告
+    url: https://github.com/GreyWolf1101/PaperLoom/security/advisories/new
+    about: 请通过私密渠道报告漏洞，不要公开 API Key 或利用细节。

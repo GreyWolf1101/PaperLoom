@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Summary outline preview</title>
+    <style>
+      body { margin: 0; padding: 36px; background: #eeeae2; color: #302e2a; font-family: Georgia, "Noto Serif SC", serif; }
+      main { display: grid; max-width: 980px; margin: auto; gap: 28px; }
+      section { padding: 20px 24px 24px; border: 1px solid #ddd5c8; border-radius: 10px; background: #fffdf8; box-shadow: 0 8px 24px rgba(55, 48, 39, .07); }
+      h2 { margin: 0 0 15px; color: #596d86; font-family: system-ui, sans-serif; font-size: 16px; }
+      .paper { position: relative; height: 180px; font-size: 22px; line-height: 1.8; }
+      .line { position: absolute; left: 4%; white-space: nowrap; }
+      .line.one { top: 12%; left: 8%; }
+      .line.two { top: 34%; }
+      .line.three { top: 56%; }
+      .line.four { top: 78%; }
+      .polygon .line.one { left: 24%; }
+      svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+      path { fill: rgba(103, 122, 147, .028); stroke: rgba(91, 109, 133, .82); stroke-width: 1.35px; stroke-dasharray: 5 4; stroke-linecap: round; stroke-linejoin: round; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section>
+        <h2>常规整段选择：单一大矩形</h2>
+        <div class="paper" id="rectangle">
+          <span class="line one">医学影像分割属于医学影像智能分析的重要基础任务，</span>
+          <span class="line two">它能够准确提取具有临床意义的组织与病灶区域。</span>
+          <span class="line three">自动化方法能够提高分析效率与结果的一致性。</span>
+          <span class="line four">因此，这项研究具有重要的现实意义。</span>
+        </div>
+      </section>
+      <section>
+        <h2>从行中间开始：单一多边形轮廓</h2>
+        <div class="paper polygon" id="polygon">
+          <span class="line one">系统除了能够执行模型训练与验证之外，</span>
+          <span class="line two">还可以使用可视化界面完成预测与结果比较，</span>
+          <span class="line three">并在上传图像后展示最终的分割结果。</span>
+        </div>
+      </section>
+    </main>
+    <script type="module">
+      import { buildSummarySelectionOutline, summaryOutlinePath } from "/src/summaryOutline.ts";
+
+      const cases = [
+        ["rectangle", [
+          { x: .08, y: .12, width: .86, height: .17 },
+          { x: .04, y: .34, width: .90, height: .17 },
+          { x: .04, y: .56, width: .90, height: .17 },
+          { x: .04, y: .78, width: .58, height: .17 },
+        ]],
+        ["polygon", [
+          { x: .24, y: .12, width: .70, height: .17 },
+          { x: .04, y: .34, width: .90, height: .17 },
+          { x: .04, y: .56, width: .62, height: .17 },
+        ]],
+      ];
+
+      cases.forEach(([id, rects]) => {
+        const outline = buildSummarySelectionOutline(rects);
+        const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        svg.setAttribute("viewBox", "0 0 1 1");
+        svg.setAttribute("preserveAspectRatio", "none");
+        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        path.setAttribute("d", summaryOutlinePath(outline));
+        path.setAttribute("vector-effect", "non-scaling-stroke");
+        svg.append(path);
+        document.querySelector(`#${id}`).append(svg);
+      });
+    </script>
+  </body>
+</html>
