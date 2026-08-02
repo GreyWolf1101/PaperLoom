@@ -11,6 +11,15 @@ export type PreparedManuscript = {
   manuscript: string;
 };
 
+export type CreationMessageIntent = "write" | "discuss" | "rewrite";
+
+export function filterCreationMessages<T extends { intent: CreationMessageIntent }>(
+  messages: T[],
+  intent: CreationMessageIntent,
+) {
+  return messages.filter((message) => message.intent === intent);
+}
+
 const CHINESE_NUMBER = "[〇零一二三四五六七八九十百千万两0-9０-９]+";
 const MANUSCRIPT_METADATA = /^(?:核心人物|主要人物|人物设定|角色设定|故事冲突|核心冲突|背景设定|世界观|故事梗概|内容简介|创作说明|写作说明|题材|类型|主题|视角|时代|风格|大纲)\s*[:：]/i;
 const MANUSCRIPT_TITLE = /^(?:【|\[)?\s*(?:书名|作品名|标题|title)\s*(?:】|\])?\s*[:：]?\s*[《〈“"'「『]?(.+?)[》〉”"'」』]?\s*$/i;

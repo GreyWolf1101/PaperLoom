@@ -9,6 +9,7 @@ import {
 import {
   BookOpen,
   Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Copy,
@@ -21,6 +22,7 @@ import {
   Plus,
   Send,
   Sparkles,
+  Square,
   Trash2,
   X,
   ZoomIn,
@@ -30,6 +32,7 @@ import { copyTextToClipboard } from "./clipboard";
 import MarkdownContent from "./MarkdownContent";
 import {
   appendManuscript,
+  filterCreationMessages,
   manuscriptWordCount,
   normalizeManuscript,
   prepareGeneratedManuscript,
@@ -39,6 +42,13 @@ import {
 
 type CreationIntent = "write" | "discuss" | "rewrite";
 type CreationPanelSide = "left" | "right";
+type CreationDrafts = Record<string, Partial<Record<CreationIntent, string>>>;
+type ActiveCreationRequest = {
+  id: string;
+  projectId: string;
+  intent: CreationIntent;
+  cancelled: boolean;
+};
 
 type ManuscriptSelection = {
   start: number;
@@ -94,7 +104,8 @@ type LegacyCreationProject = {
 type Props = {
   language: "zh-CN" | "en-US";
   ensureAIReady: () => boolean;
-  requestAI: (system: string, user: string) => Promise<string>;
+  requestAI: (system: string, user: string, requestId: string) => Promise<string>;
+  cancelAI: (requestId: string) => Promise<boolean>;
   notify: (message: string) => void;
 };
 
@@ -228,6 +239,7 @@ export default function CreationWorkspace({
   language,
   ensureAIReady,
   requestAI,
+  cancelAI,
   notify,
 }: Props) {
   const initialWorkspace = useMemo(loadCreationWorkspace, []);
@@ -238,30 +250,65 @@ export default function CreationWorkspace({
   const [textZoom, setTextZoom] = useState(initialWorkspace.textZoom);
   const [pageZoom, setPageZoom] = useState(initialWorkspace.pageZoom);
   const [intent, setIntent] = useState<CreationIntent>("write");
-  const [prompt, setPrompt] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [drafts, setDrafts] = useState<CreationDrafts>({});
+  const [busyByProject, setBusyByProject] = useState<Record<string, CreationIntent>>({});
+  const [projectMenuOpen, setProjectMenuOpen] = useState(false);
   const [selection, setSelection] = useState<ManuscriptSelection | null>(null);
   const manuscriptRef = useRef<HTMLDivElement>(null);
   const messagesRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
+  const projectSwitcherRef = useRef<HTMLDivElement>(null);
+  const composingRef = useRef(false);
+  const activeRequestsRef = useRef(new Map<string, ActiveCreationRequest>());
+  const activeProjectIdRef = useRef(activeProjectId);
   const isChinese = language === "zh-CN";
   const tr = (zh: string, en: string) => (isChinese ? zh : en);
   const activeProject = projects.find((project) => project.id === activeProjectId) || projects[0];
+  activeProjectIdRef.current = activeProject?.id || activeProjectId;
+  const activeProjectIndex = Math.max(0, projects.findIndex((project) => project.id === activeProject?.id));
   const title = activeProject?.title || "";
-  const displayTitle = title.trim() || tr("等待 AI 命名", "Waiting for AI title");
+  const displayTitle = title.trim() || tr(`新作品 ${activeProjectIndex + 1}`, `New work ${activeProjectIndex + 1}`);
   const manuscript = activeProject?.manuscript || "";
   const messages = activeProject?.messages || [];
+  const visibleMessages = useMemo(
+    () => filterCreationMessages(messages, intent),
+    [intent, messages],
+  );
+  const prompt = drafts[activeProject?.id || ""]?.[intent] || "";
+  const busyIntent = activeProject?.id ? busyByProject[activeProject.id] || null : null;
+  const busy = busyIntent !== null;
   const blocks = useMemo(() => splitManuscriptBlocks(manuscript), [manuscript]);
   const wordCount = useMemo(() => manuscriptWordCount(manuscript), [manuscript]);
 
-  const updateCurrentProject = useCallback((
+  const setPrompt = useCallback((value: string) => {
+    if (!activeProject?.id) return;
+    setDrafts((current) => ({
+      ...current,
+      [activeProject.id]: {
+        ...current[activeProject.id],
+        [intent]: value,
+      },
+    }));
+  }, [activeProject?.id, intent]);
+
+  const focusComposer = () => {
+    window.requestAnimationFrame(() => composerRef.current?.focus({ preventScroll: true }));
+  };
+
+  const updateProject = useCallback((
+    projectId: string,
     updater: (project: CreationProject) => CreationProject,
   ) => {
     setProjects((current) => current.map((project) => (
-      project.id === activeProjectId
+      project.id === projectId
         ? { ...updater(project), updatedAt: Date.now() }
         : project
     )));
-  }, [activeProjectId]);
+  }, []);
+
+  const updateCurrentProject = useCallback((
+    updater: (project: CreationProject) => CreationProject,
+  ) => updateProject(activeProjectId, updater), [activeProjectId, updateProject]);
 
   const setCurrentTitle = (nextTitle: string) => {
     updateCurrentProject((project) => ({ ...project, title: nextTitle }));
@@ -283,6 +330,16 @@ export default function CreationWorkspace({
     }));
   };
 
+  const setProjectMessages = useCallback((
+    projectId: string,
+    next: CreationMessage[] | ((current: CreationMessage[]) => CreationMessage[]),
+  ) => {
+    updateProject(projectId, (project) => ({
+      ...project,
+      messages: (typeof next === "function" ? next(project.messages) : next).slice(-80),
+    }));
+  }, [updateProject]);
+
   useEffect(() => {
     const timer = window.setTimeout(() => {
       const workspace: StoredCreationWorkspace = {
@@ -300,15 +357,24 @@ export default function CreationWorkspace({
 
   useEffect(() => {
     setSelection(null);
-    setPrompt("");
     setIntent("write");
+    setProjectMenuOpen(false);
     window.getSelection()?.removeAllRanges();
   }, [activeProjectId]);
 
   useEffect(() => {
     const scroll = messagesRef.current;
     if (scroll) scroll.scrollTop = scroll.scrollHeight;
-  }, [busy, messages]);
+  }, [busyIntent, visibleMessages]);
+
+  useEffect(() => {
+    if (!projectMenuOpen) return undefined;
+    const closeProjectMenu = (event: PointerEvent) => {
+      if (!projectSwitcherRef.current?.contains(event.target as Node)) setProjectMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", closeProjectMenu);
+    return () => document.removeEventListener("pointerdown", closeProjectMenu);
+  }, [projectMenuOpen]);
 
   const captureManuscriptSelection = () => {
     window.setTimeout(() => {
@@ -363,7 +429,7 @@ export default function CreationWorkspace({
         : manuscript.slice(-18_000)
       : tr("（当前尚无正文）", "(The manuscript is currently empty.)");
     const recentConversation = messages
-      .filter((message) => message.role === "user" || message.intent !== "write")
+      .filter((message) => message.intent === activeIntent)
       .slice(-6)
       .map((message) => `${message.role === "user" ? tr("用户", "User") : "AI"}：${message.content.slice(0, 1_500)}`)
       .join("\n\n");
@@ -395,13 +461,21 @@ From here onward output only chapter headings and prose that can enter the book.
 
   const sendPrompt = async () => {
     const instruction = prompt.trim();
-    if (!instruction || busy || !ensureAIReady()) return;
+    const requestProjectId = activeProject?.id;
+    if (!requestProjectId || !instruction || busy || !ensureAIReady()) return;
     if (intent === "rewrite" && !selection) {
       notify(tr("请先在右侧书稿中选中需要重写的文字", "Select manuscript text before requesting a rewrite"));
       return;
     }
 
     const activeIntent = intent;
+    const requestTask: ActiveCreationRequest = {
+      id: crypto.randomUUID(),
+      projectId: requestProjectId,
+      intent: activeIntent,
+      cancelled: false,
+    };
+    activeRequestsRef.current.set(requestProjectId, requestTask);
     const message: CreationMessage = {
       id: crypto.randomUUID(),
       role: "user",
@@ -409,9 +483,10 @@ From here onward output only chapter headings and prose that can enter the book.
       intent: activeIntent,
       createdAt: Date.now(),
     };
-    setCurrentMessages((current) => [...current, message]);
+    setProjectMessages(requestProjectId, (current) => [...current, message]);
     setPrompt("");
-    setBusy(true);
+    setBusyByProject((current) => ({ ...current, [requestProjectId]: activeIntent }));
+    focusComposer();
 
     try {
       const system = activeIntent === "write"
@@ -428,7 +503,8 @@ From here onward output only chapter headings and prose that can enter the book.
             "你是小说作者的创作顾问。根据书稿与选中文本回答任何创作问题，可以分析人物、情节、节奏、逻辑或语言；回答要具体、可执行，不擅自修改书稿。",
             "You are a creative consultant for an author. Answer questions about characters, plot, pacing, logic or prose using the manuscript and selected text. Be concrete and actionable, and do not modify the manuscript without permission.",
           );
-      const response = await requestAI(system, buildPrompt(instruction, activeIntent));
+      const response = await requestAI(system, buildPrompt(instruction, activeIntent), requestTask.id);
+      if (requestTask.cancelled || activeRequestsRef.current.get(requestProjectId) !== requestTask) return;
       const prepared = activeIntent === "write" ? prepareGeneratedManuscript(response) : null;
       const normalized = activeIntent === "discuss"
         ? response.trim()
@@ -452,7 +528,9 @@ From here onward output only chapter headings and prose that can enter the book.
               title.trim() ? `${tr("已有书名", "Existing title")}：${title.trim()}` : "",
               `${tr("正文片段", "Prose excerpt")}：\n${normalized.slice(0, 2_500)}`,
             ].filter(Boolean).join("\n\n"),
+            requestTask.id,
           );
+          if (requestTask.cancelled || activeRequestsRef.current.get(requestProjectId) !== requestTask) return;
           const metadata = prepareGeneratedManuscript(metadataResponse);
           if (!resolvedTitle) resolvedTitle = metadata.title.trim();
           if (!resolvedSummary) resolvedSummary = metadata.summary.trim();
@@ -466,6 +544,7 @@ From here onward output only chapter headings and prose that can enter the book.
           "The AI advanced the characters and plot for this task; the complete prose is in the manuscript.",
         );
       }
+      if (requestTask.cancelled || activeRequestsRef.current.get(requestProjectId) !== requestTask) return;
       const assistantMessage: CreationMessage = {
         id: crypto.randomUUID(),
         role: "assistant",
@@ -477,7 +556,7 @@ From here onward output only chapter headings and prose that can enter the book.
         generatedWordCount: generatedCount,
         writingReceipt: activeIntent === "write"
           ? {
-            title: resolvedTitle || tr("等待 AI 命名", "Waiting for AI title"),
+            title: resolvedTitle || displayTitle,
             task: instruction.slice(0, 180),
             summary: resolvedSummary.slice(0, 260),
           }
@@ -486,17 +565,49 @@ From here onward output only chapter headings and prose that can enter the book.
           ? { ...selection, replacement: normalized }
           : undefined,
       };
-      setCurrentMessages((current) => [...current, assistantMessage]);
+      setProjectMessages(requestProjectId, (current) => [...current, assistantMessage]);
       if (activeIntent === "write") {
-        if (resolvedTitle && isPlaceholderTitle(title)) setCurrentTitle(resolvedTitle);
-        setCurrentManuscript((current) => appendManuscript(current, normalized));
-        notify(tr("新内容已写入右侧书稿", "New writing added to the manuscript"));
+        updateProject(requestProjectId, (project) => ({
+          ...project,
+          title: resolvedTitle && isPlaceholderTitle(project.title) ? resolvedTitle : project.title,
+          manuscript: appendManuscript(project.manuscript, normalized),
+        }));
+        notify(tr(`“${resolvedTitle || displayTitle}”已完成本次生成`, `“${resolvedTitle || displayTitle}” finished generating`));
       }
     } catch (error) {
-      notify(error instanceof Error ? error.message : tr("AI 创作失败", "AI writing failed"));
+      if (!requestTask.cancelled) {
+        notify(error instanceof Error ? error.message : tr("AI 创作失败", "AI writing failed"));
+      }
     } finally {
-      setBusy(false);
+      if (activeRequestsRef.current.get(requestProjectId) === requestTask) {
+        activeRequestsRef.current.delete(requestProjectId);
+        setBusyByProject((current) => {
+          const next = { ...current };
+          delete next[requestProjectId];
+          return next;
+        });
+        if (activeProjectIdRef.current === requestProjectId) focusComposer();
+      }
     }
+  };
+
+  const stopProjectGeneration = (projectId: string, showNotice = true) => {
+    const requestTask = activeRequestsRef.current.get(projectId);
+    if (!requestTask) return;
+    requestTask.cancelled = true;
+    activeRequestsRef.current.delete(projectId);
+    setBusyByProject((current) => {
+      const next = { ...current };
+      delete next[projectId];
+      return next;
+    });
+    void cancelAI(requestTask.id).catch(() => false);
+    if (activeProjectIdRef.current === projectId) focusComposer();
+    if (showNotice) notify(tr("已终止本次生成，可以输入新的指令", "Generation stopped. You can enter a new instruction."));
+  };
+
+  const stopGeneration = () => {
+    if (activeProject?.id) stopProjectGeneration(activeProject.id);
   };
 
   const applyReplacement = (messageId: string, suggestion: ReplacementSuggestion) => {
@@ -552,8 +663,8 @@ From here onward output only chapter headings and prose that can enter the book.
     setProjects((current) => [project, ...current]);
     setActiveProjectId(project.id);
     setSelection(null);
-    setPrompt("");
     setIntent("write");
+    setProjectMenuOpen(false);
     notify(tr("已创建新作品，旧作品和对话仍保留在会话列表中", "New work created; earlier works and chats remain in the project list"));
   };
 
@@ -562,7 +673,14 @@ From here onward output only chapter headings and prose that can enter the book.
       `确定删除“${displayTitle}”及其对话吗？`,
       `Delete “${displayTitle}” and its conversation?`,
     ))) return;
+    stopProjectGeneration(activeProjectId, false);
     const remaining = projects.filter((project) => project.id !== activeProjectId);
+    setProjectMenuOpen(false);
+    setDrafts((current) => {
+      const next = { ...current };
+      delete next[activeProjectId];
+      return next;
+    });
     if (remaining.length) {
       setProjects(remaining);
       setActiveProjectId(remaining[0].id);
@@ -575,10 +693,20 @@ From here onward output only chapter headings and prose that can enter the book.
 
   const useQuickAction = (nextIntent: CreationIntent, text: string) => {
     setIntent(nextIntent);
-    setPrompt(text);
+    if (!activeProject?.id) return;
+    setDrafts((current) => ({
+      ...current,
+      [activeProject.id]: {
+        ...current[activeProject.id],
+        [nextIntent]: text,
+      },
+    }));
+    window.setTimeout(() => composerRef.current?.focus(), 0);
   };
 
   const handleComposerKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (composingRef.current || event.nativeEvent.isComposing || event.keyCode === 229) return;
+    if (busy) return;
     if (event.key !== "Enter" || event.shiftKey) return;
     event.preventDefault();
     void sendPrompt();
@@ -645,24 +773,51 @@ From here onward output only chapter headings and prose that can enter the book.
             </div>
           </header>
 
-          <div className="creation-project-switcher">
+          <div ref={projectSwitcherRef} className="creation-project-switcher">
             <div>
               <span>{tr("作品会话", "Saved works")}</span>
-              <select
-                value={activeProjectId}
-                onChange={(event) => setActiveProjectId(event.target.value)}
-                disabled={busy}
+              <button
+                type="button"
+                className="creation-project-trigger"
+                onClick={() => setProjectMenuOpen((open) => !open)}
                 aria-label={tr("切换作品会话", "Switch writing project")}
+                aria-haspopup="listbox"
+                aria-expanded={projectMenuOpen}
               >
-                {projects.map((project, index) => (
-                  <option key={project.id} value={project.id}>
-                    {project.title.trim() || tr(
-                      `新作品 ${index + 1} · 等待 AI 命名`,
-                      `New work ${index + 1} · Waiting for AI title`,
-                    )}
-                  </option>
-                ))}
-              </select>
+                <span>{displayTitle}</span>
+                <span className="creation-project-trigger-icons">
+                  {busy && <LoaderCircle size={13} className="spin" />}
+                  <ChevronDown size={15} />
+                </span>
+              </button>
+              {projectMenuOpen && (
+                <div className="creation-project-menu" role="listbox" aria-label={tr("作品列表", "Writing projects")}>
+                  {projects.map((project, index) => {
+                    const projectLabel = project.title.trim() || tr(`新作品 ${index + 1}`, `New work ${index + 1}`);
+                    const selected = project.id === activeProject?.id;
+                    const generating = Boolean(busyByProject[project.id]);
+                    return (
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected={selected}
+                        className={selected ? "active" : ""}
+                        key={project.id}
+                        onClick={() => {
+                          setActiveProjectId(project.id);
+                          setProjectMenuOpen(false);
+                        }}
+                      >
+                        <span>{projectLabel}</span>
+                        <span className="creation-project-option-status">
+                          {generating && <em><LoaderCircle size={12} className="spin" />{tr("生成中", "Generating")}</em>}
+                          {selected && <Check size={14} />}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
             <button type="button" onClick={startNewProject} title={tr("新建作品", "New work")}>
               <Plus size={15} />
@@ -682,15 +837,27 @@ From here onward output only chapter headings and prose that can enter the book.
           </div>
 
           <div ref={messagesRef} className="creation-messages">
-            {!messages.length && (
+            {!visibleMessages.length && (
               <div className="creation-welcome">
                 <span><BookOpen size={24} /></span>
-                <strong>{tr("从一个想法开始写作", "Start with an idea")}</strong>
+                <strong>{intent === "write"
+                  ? tr("从一个想法开始写作", "Start with an idea")
+                  : intent === "discuss"
+                    ? tr("围绕当前作品单独讨论", "Discuss this work separately")
+                    : tr("选中书稿后开始重写", "Select manuscript text to rewrite")}</strong>
                 <p>{tr(
-                  "告诉 AI 题材、人物、时代、视角和文风。生成正文只会写入右侧书稿。",
-                  "Tell the AI the genre, characters, era, viewpoint and voice. Generated prose appears only in the manuscript.",
+                  intent === "write"
+                    ? "告诉 AI 题材、人物、时代、视角和文风。这里只显示创作任务与生成概述。"
+                    : intent === "discuss"
+                      ? "讨论区只保留你和 AI 对当前作品的分析，不会混入创作或重写记录。"
+                      : "在右侧选中文字后提出重写要求；这里只显示原要求与重写结果。",
+                  intent === "write"
+                    ? "Tell the AI the genre, characters, era, viewpoint and voice. Only writing tasks and generated summaries appear here."
+                    : intent === "discuss"
+                      ? "Discussion keeps analysis about this work separate from writing and rewrite history."
+                      : "Select text on the right and request a rewrite. Only rewrite requests and results appear here.",
                 )}</p>
-                <div className="creation-starters">
+                {intent === "write" && <div className="creation-starters">
                   <button onClick={() => useQuickAction("write", tr(
                     "创作一部悬疑长篇小说。先根据我的主题设计书名、核心人物和故事冲突，然后写出第一章。",
                     "Begin a suspense novel. Establish the title, central characters and conflict, then write chapter one.",
@@ -703,10 +870,10 @@ From here onward output only chapter headings and prose that can enter the book.
                     "根据我接下来提供的主题，先写一个有画面感的开场，使用第三人称限知视角。",
                     "Use the theme I provide next to write a vivid opening in third-person limited viewpoint.",
                   ))}>{tr("写一个开场", "Write an opening")}</button>
-                </div>
+                </div>}
               </div>
             )}
-            {messages.map((message) => {
+            {visibleMessages.map((message) => {
               const isWriteReceipt = message.role === "assistant" && message.intent === "write";
               return (
                 <article key={message.id} className={`creation-message ${message.role} ${isWriteReceipt ? "write-receipt" : ""}`}>
@@ -759,14 +926,19 @@ From here onward output only chapter headings and prose that can enter the book.
                 </article>
               );
             })}
-            {busy && (
+            {busyIntent === intent && (
               <article className="creation-message assistant pending">
                 <span className="creation-message-role">AI</span>
-                <div><LoaderCircle size={15} className="spin" />{intent === "write"
-                  ? tr("正在续写书稿…", "Writing the manuscript…")
-                  : intent === "rewrite"
-                    ? tr("正在重写选段…", "Rewriting the selection…")
-                    : tr("正在思考你的问题…", "Thinking about your question…")}</div>
+                <div className="creation-pending-card">
+                  <span><LoaderCircle size={15} className="spin" />{intent === "write"
+                    ? tr("正在续写书稿…", "Writing the manuscript…")
+                    : intent === "rewrite"
+                      ? tr("正在重写选段…", "Rewriting the selection…")
+                      : tr("正在思考你的问题…", "Thinking about your question…")}</span>
+                  <button type="button" onClick={stopGeneration}>
+                    <Square size={12} fill="currentColor" />{tr("终止", "Stop")}
+                  </button>
+                </div>
               </article>
             )}
           </div>
@@ -784,9 +956,15 @@ From here onward output only chapter headings and prose that can enter the book.
               </div>
             )}
             <textarea
+              ref={composerRef}
               value={prompt}
               onChange={(event) => setPrompt(event.target.value)}
               onKeyDown={handleComposerKeyDown}
+              onCompositionStart={() => { composingRef.current = true; }}
+              onCompositionEnd={() => { composingRef.current = false; }}
+              onBlur={() => { composingRef.current = false; }}
+              onFocus={() => document.body.classList.remove("resizing-insight")}
+              onPointerDown={(event) => event.currentTarget.focus({ preventScroll: true })}
               placeholder={intent === "write"
                 ? tr("描述你想创作的主题、人物或下一段情节…", "Describe the theme, characters or next scene…")
                 : intent === "rewrite"
@@ -795,9 +973,18 @@ From here onward output only chapter headings and prose that can enter the book.
               rows={3}
             />
             <div className="creation-composer-footer">
-              <span>{tr("Enter 发送 · Shift+Enter 换行", "Enter to send · Shift+Enter for a new line")}</span>
-              <button onClick={() => void sendPrompt()} disabled={!prompt.trim() || busy} aria-label={tr("发送给 AI", "Send to AI")}>
-                {busy ? <LoaderCircle size={16} className="spin" /> : <Send size={16} />}
+              <span>{busy
+                ? tr("生成期间仍可输入 · 点击方块终止", "You can keep typing · click the square to stop")
+                : tr("Enter 发送 · Shift+Enter 换行", "Enter to send · Shift+Enter for a new line")}</span>
+              <button
+                className={busy ? "stop-generation" : ""}
+                onPointerDown={(event) => event.preventDefault()}
+                onClick={() => busy ? stopGeneration() : void sendPrompt()}
+                disabled={!busy && !prompt.trim()}
+                aria-label={busy ? tr("终止 AI 生成", "Stop AI generation") : tr("发送给 AI", "Send to AI")}
+                title={busy ? tr("终止 AI 生成", "Stop AI generation") : tr("发送给 AI", "Send to AI")}
+              >
+                {busy ? <Square size={13} fill="currentColor" /> : <Send size={16} />}
               </button>
             </div>
           </div>

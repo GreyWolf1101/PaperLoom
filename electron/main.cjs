@@ -14,6 +14,7 @@ const {
 
 let mainWindow;
 let updateManager;
+const activeAIRequests = new Map();
 
 const AI_PROVIDERS = new Set(["openai", "deepseek", "anthropic", "gemini", "kimi", "qwen", "minimax", "custom"]);
 const AI_NETWORK_MODES = new Set(["auto", "system", "direct", "manual"]);
@@ -994,7 +995,24 @@ async function testAIConnection(payload) {
   }
 }
 
-async function completeAI(payload) {
+function aiRequestKey(senderId, requestId) {
+  const normalized = String(requestId || "").trim();
+  if (!/^[a-zA-Z0-9_-]{8,100}$/.test(normalized)) return "";
+  return `${Number(senderId) || 0}:${normalized}`;
+}
+
+function cancelAIRequest(senderId, requestId) {
+  const requestKey = aiRequestKey(senderId, requestId);
+  const controller = requestKey ? activeAIRequests.get(requestKey) : undefined;
+  if (!controller) return false;
+  const reason = new Error("AI request stopped by the user");
+  reason.code = "AI_REQUEST_CANCELLED";
+  controller.abort(reason);
+  activeAIRequests.delete(requestKey);
+  return true;
+}
+
+async function completeAI(payload, senderId = 0) {
   const settings = await getSettings();
   const provider = payload.provider || settings.provider || inferProvider(payload.baseUrl || settings.baseUrl);
   const baseUrl = String(payload.baseUrl || settings.baseUrl || "").trim();
@@ -1009,7 +1027,17 @@ async function completeAI(payload) {
   }
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 90_000);
+  const requestKey = aiRequestKey(senderId, payload.requestId);
+  if (requestKey) {
+    const previous = activeAIRequests.get(requestKey);
+    if (previous) previous.abort();
+    activeAIRequests.set(requestKey, controller);
+  }
+  const timeout = setTimeout(() => {
+    const reason = new Error("AI request timed out");
+    reason.code = "AI_REQUEST_TIMEOUT";
+    controller.abort(reason);
+  }, 90_000);
   let response;
   try {
     if (provider === "anthropic") {
@@ -1066,31 +1094,40 @@ async function completeAI(payload) {
         }),
       }, networkMode, proxyUrl);
     }
+
+    if (!response.ok) {
+      const detail = await response.text();
+      const providerDetail = extractAPIError(detail).slice(0, 240);
+      const requestError = new Error(settings.language === "en-US"
+        ? `AI request failed (${response.status}): ${providerDetail}`
+        : `AI 请求失败（${response.status}）：${providerDetail}`);
+      requestError.code = "AI_HTTP_ERROR";
+      throw requestError;
+    }
+    const data = await response.json();
+    if (provider === "anthropic") {
+      return Array.isArray(data?.content)
+        ? data.content.filter((item) => item?.type === "text").map((item) => item.text || "").join("\n")
+        : "";
+    }
+    return data?.choices?.[0]?.message?.content || "";
   } catch (error) {
-    if (error?.name === "AbortError") {
+    if (controller.signal.aborted) {
+      if (controller.signal.reason?.code === "AI_REQUEST_CANCELLED") {
+        throw new Error(settings.language === "en-US"
+          ? "AI generation was stopped."
+          : "AI 生成已终止。");
+      }
       throw new Error(settings.language === "en-US"
         ? "The AI request timed out after 90 seconds. Try again or use a faster model."
-        : "AI 请求超过 90 秒，已自动停止。请重试或换用响应更快的模型。");
+          : "AI 请求超过 90 秒，已自动停止。请重试或换用响应更快的模型。");
     }
+    if (error?.code === "AI_HTTP_ERROR") throw error;
     throw new Error(await readableNetworkError(error, baseUrl, settings.language, networkMode, proxyUrl));
   } finally {
     clearTimeout(timeout);
+    if (requestKey && activeAIRequests.get(requestKey) === controller) activeAIRequests.delete(requestKey);
   }
-
-  if (!response.ok) {
-    const detail = await response.text();
-    const providerDetail = extractAPIError(detail).slice(0, 240);
-    throw new Error(settings.language === "en-US"
-      ? `AI request failed (${response.status}): ${providerDetail}`
-      : `AI 请求失败（${response.status}）：${providerDetail}`);
-  }
-  const data = await response.json();
-  if (provider === "anthropic") {
-    return Array.isArray(data?.content)
-      ? data.content.filter((item) => item?.type === "text").map((item) => item.text || "").join("\n")
-      : "";
-  }
-  return data?.choices?.[0]?.message?.content || "";
 }
 
 async function searchAcademic(payload) {
@@ -1232,7 +1269,8 @@ app.whenReady().then(() => {
   ipcMain.handle("updates:download", () => updateManager?.download());
   ipcMain.handle("updates:install", () => updateManager?.install());
   ipcMain.handle("ai:test", (_event, payload) => testAIConnection(payload));
-  ipcMain.handle("ai:complete", (_event, payload) => completeAI(payload));
+  ipcMain.handle("ai:complete", (event, payload) => completeAI(payload, event.sender.id));
+  ipcMain.handle("ai:cancel", (event, payload) => cancelAIRequest(event.sender.id, payload?.requestId));
   ipcMain.handle("translation:test", (_event, payload) => testTranslationConnection(payload));
   ipcMain.handle("translation:translate", (_event, payload) => translateText(payload));
   ipcMain.handle("academic:search", (_event, payload) => searchAcademic(payload));

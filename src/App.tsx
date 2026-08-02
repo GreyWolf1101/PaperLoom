@@ -2341,11 +2341,15 @@ function App() {
       document.body.classList.remove("resizing-insight");
       window.removeEventListener("pointermove", handlePointerMove);
       window.removeEventListener("pointerup", finishResize);
+      window.removeEventListener("pointercancel", finishResize);
+      window.removeEventListener("blur", finishResize);
       void updateLayoutSettings({ insightPanelMode: "custom", insightPanelWidth: latestWidth });
     };
 
     window.addEventListener("pointermove", handlePointerMove);
     window.addEventListener("pointerup", finishResize, { once: true });
+    window.addEventListener("pointercancel", finishResize, { once: true });
+    window.addEventListener("blur", finishResize, { once: true });
   };
 
   const updateDocumentNotes = (
@@ -2728,9 +2732,9 @@ function App() {
     return true;
   };
 
-  const requestAI = async (system: string, user: string, json = false) => {
+  const requestAI = async (system: string, user: string, json = false, requestId?: string) => {
     if (!window.paperLoom) return buildLocalSummary(user);
-    return window.paperLoom.completeAI({ system, user, json });
+    return window.paperLoom.completeAI({ system, user, json, requestId });
   };
 
   const runSelectionAction = async (kind: "translation" | "summary") => {
@@ -3837,13 +3841,14 @@ function App() {
             <CreationWorkspace
               language={language}
               ensureAIReady={ensureAIReady}
-              requestAI={async (system, user) => {
+              requestAI={async (system, user, requestId) => {
                 try {
-                  return await requestAI(system, user);
+                  return await requestAI(system, user, false, requestId);
                 } catch (error) {
                   throw new Error(readableAIError(error, language, tr("AI 创作失败", "AI writing failed")));
                 }
               }}
+              cancelAI={async (requestId) => window.paperLoom?.cancelAI(requestId) ?? false}
               notify={setToast}
             />
           ) : workspaceView === "discovery" ? (

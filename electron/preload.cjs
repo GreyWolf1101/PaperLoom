@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld("paperLoom", {
   },
   testAI: (payload) => ipcRenderer.invoke("ai:test", payload),
   completeAI: (payload) => ipcRenderer.invoke("ai:complete", payload),
+  cancelAI: (requestId) => ipcRenderer.invoke("ai:cancel", { requestId }),
   testTranslation: (payload) => ipcRenderer.invoke("translation:test", payload),
   translateText: (payload) => ipcRenderer.invoke("translation:translate", payload),
   searchAcademic: (payload) => ipcRenderer.invoke("academic:search", payload),

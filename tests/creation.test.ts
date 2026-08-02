@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   appendManuscript,
+  filterCreationMessages,
   isBookChapterHeading,
   isBookSectionHeading,
   normalizeManuscript,
@@ -90,5 +91,27 @@ test("appends and replaces generated prose without malformed spacing", () => {
   assert.equal(
     replaceManuscriptRange("第一章\n\n旧句。\n\n下一段。", 5, 8, "改写后的句子。"),
     "第一章\n\n改写后的句子。\n\n下一段。",
+  );
+});
+
+test("keeps writing, discussion and rewrite conversations independent", () => {
+  const messages = [
+    { id: "write-user", intent: "write" as const },
+    { id: "discuss-user", intent: "discuss" as const },
+    { id: "write-ai", intent: "write" as const },
+    { id: "rewrite-ai", intent: "rewrite" as const },
+  ];
+
+  assert.deepEqual(
+    filterCreationMessages(messages, "write").map((message) => message.id),
+    ["write-user", "write-ai"],
+  );
+  assert.deepEqual(
+    filterCreationMessages(messages, "discuss").map((message) => message.id),
+    ["discuss-user"],
+  );
+  assert.deepEqual(
+    filterCreationMessages(messages, "rewrite").map((message) => message.id),
+    ["rewrite-ai"],
   );
 });

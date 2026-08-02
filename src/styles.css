@@ -4679,6 +4679,7 @@ input:focus-visible {
 }
 
 .creation-project-switcher {
+  position: relative;
   display: flex;
   flex: 0 0 auto;
   align-items: flex-end;
@@ -4704,10 +4705,13 @@ input:focus-visible {
   text-transform: uppercase;
 }
 
-.creation-project-switcher select {
+.creation-project-trigger {
+  display: flex;
   width: 100%;
   height: 34px;
-  padding: 0 30px 0 10px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px;
   border: 1px solid #d9d4ca;
   border-radius: 8px;
   outline: 0;
@@ -4716,11 +4720,124 @@ input:focus-visible {
   font: inherit;
   font-size: 11.5px;
   font-weight: 650;
+  cursor: pointer;
+  gap: 8px;
 }
 
-.creation-project-switcher select:focus {
+.creation-project-trigger > span:first-child {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.creation-project-trigger > .creation-project-trigger-icons {
+  display: flex;
+  overflow: visible;
+  flex: 0 0 auto;
+  align-items: center;
+  color: #747b75;
+  gap: 6px;
+}
+
+.creation-project-trigger-icons > svg {
+  flex: 0 0 auto;
+}
+
+.creation-project-trigger-icons > svg:last-child {
+  transition: transform .18s ease;
+}
+
+.creation-project-trigger[aria-expanded="true"] .creation-project-trigger-icons > svg:last-child {
+  transform: rotate(180deg);
+}
+
+.creation-project-trigger:focus-visible,
+.creation-project-trigger[aria-expanded="true"] {
   border-color: #9eafa4;
   box-shadow: 0 0 0 3px rgba(96, 123, 110, .09);
+}
+
+.creation-project-menu {
+  position: absolute;
+  z-index: 12;
+  top: calc(100% - 7px);
+  left: 14px;
+  right: 56px;
+  display: flex;
+  max-height: 220px;
+  overflow-y: auto;
+  flex-direction: column;
+  padding: 5px;
+  border: 1px solid #d5d2c9;
+  border-radius: 9px;
+  background: #fffdfa;
+  box-shadow: 0 12px 30px rgba(53, 58, 54, .14);
+}
+
+.creation-project-menu > button {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #555952;
+  font: inherit;
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+  gap: 8px;
+}
+
+.creation-project-menu > button:hover,
+.creation-project-menu > button.active {
+  background: #edf3ef;
+  color: #486357;
+}
+
+.creation-project-menu > button span {
+  overflow: hidden;
+  color: inherit;
+  font-size: inherit;
+  font-weight: 650;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.creation-project-menu > button svg {
+  flex: 0 0 auto;
+}
+
+.creation-project-menu > button .creation-project-option-status {
+  display: flex;
+  overflow: visible;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 7px;
+}
+
+.creation-project-option-status em {
+  display: flex;
+  align-items: center;
+  padding: 3px 6px;
+  border-radius: 999px;
+  background: #e4eee8;
+  color: #537064;
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 700;
+  gap: 4px;
 }
 
 .creation-project-switcher > button {
@@ -4909,6 +5026,38 @@ input:focus-visible {
   color: #73766f;
 }
 
+.creation-message.pending > .creation-pending-card {
+  min-width: 210px;
+  justify-content: space-between;
+}
+
+.creation-pending-card > span {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.creation-pending-card > button {
+  display: flex;
+  min-height: 27px;
+  align-items: center;
+  padding: 0 9px;
+  border: 1px solid #dfc5bd;
+  border-radius: 7px;
+  background: #fff7f3;
+  color: #a45140;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  gap: 5px;
+}
+
+.creation-pending-card > button:hover {
+  border-color: #ca8d7d;
+  background: #fbece6;
+}
+
 .creation-message.write-receipt {
   width: 96%;
   max-width: 96%;
@@ -5007,10 +5156,13 @@ input:focus-visible {
 }
 
 .creation-composer {
+  position: relative;
+  z-index: 2;
   flex: 0 0 auto;
   padding: 12px 14px 14px;
   border-top: 1px solid #dfdad0;
   background: #f8f5ee;
+  isolation: isolate;
 }
 
 .creation-workspace-mode.library-collapsed .creation-composer {
@@ -5084,6 +5236,8 @@ input:focus-visible {
 }
 
 .creation-composer textarea {
+  position: relative;
+  z-index: 1;
   display: block;
   width: 100%;
   min-height: 74px;
@@ -5095,10 +5249,14 @@ input:focus-visible {
   border-radius: 9px 9px 0 0;
   outline: 0;
   background: #fffdfa;
+  caret-color: #405f50;
   color: #393a36;
   font: inherit;
   font-size: 12px;
   line-height: 1.55;
+  pointer-events: auto;
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .creation-composer textarea:focus {
@@ -5137,6 +5295,15 @@ input:focus-visible {
 .creation-composer-footer button:disabled {
   opacity: .4;
   cursor: default;
+}
+
+.creation-composer-footer button.stop-generation {
+  background: #b65b49;
+  box-shadow: 0 0 0 3px rgba(182, 91, 73, .1);
+}
+
+.creation-composer-footer button.stop-generation:hover {
+  background: #a84c3b;
 }
 
 .creation-manuscript-panel {

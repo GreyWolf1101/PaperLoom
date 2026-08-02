@@ -200,7 +200,9 @@ interface Window {
       networkMode?: PaperLoomSettings["networkMode"];
       proxyUrl?: string;
       imageDataUrl?: string;
+      requestId?: string;
     }) => Promise<string>;
+    cancelAI: (requestId: string) => Promise<boolean>;
     testTranslation: (payload: {
       translationProvider: PaperLoomSettings["translationProvider"];
       translationAppId: string;
