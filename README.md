@@ -6,15 +6,13 @@
 
 PaperLoom 是一款本地优先的 Windows 桌面阅读与研究工作台，面向论文研究、长文阅读、书籍管理和 AI 辅助创作。
 
-## 立即下载
+## 下载 PaperLoom
 
-> 当前稳定版：**PaperLoom 0.9.5**。软件下载、便携版和自动更新文件统一从公开的 PaperLoom Releases 仓库提供。
+软件下载、便携版、安装版、校验文件和更新说明统一发布在独立的 Releases 仓库。下面的永久入口会自动指向最新版本，无需随版本号修改：
 
-| 下载方式 | 适合人群 | 下载地址 |
-| --- | --- | --- |
-| **便携版 ZIP（推荐体验）** | 解压后双击 `PaperLoom.exe`，无需安装 | **[下载 PaperLoom 0.9.5 便携版](https://github.com/GreyWolf1101/PaperLoom-Releases/releases/download/v0.9.5/PaperLoom-Portable-0.9.5.zip)** |
-| **Windows 安装版** | 需要桌面快捷方式和完整自动更新体验 | **[下载 PaperLoom 0.9.5 安装包](https://github.com/GreyWolf1101/PaperLoom-Releases/releases/download/v0.9.5/PaperLoom-Setup-0.9.5.exe)** |
-| **全部版本与更新说明** | 查看历史版本、校验文件和更新内容 | **[打开官方下载页面](https://github.com/GreyWolf1101/PaperLoom-Releases/releases/latest)** |
+### **[打开“全部版本与更新说明”官方下载页面](https://github.com/GreyWolf1101/PaperLoom-Releases/releases/latest)**
+
+进入页面后，在最新版本的 **Assets** 区域选择便携版 ZIP 或 Windows 安装包即可。
 
 系统要求：Windows 10 / 11，64 位。应用暂未配置商业代码签名证书，因此 Windows 首次运行时可能显示“未知发布者”。
 
