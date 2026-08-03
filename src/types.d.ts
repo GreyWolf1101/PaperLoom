@@ -164,10 +164,85 @@ interface ResearchCitationGraphPayload {
   references: ResearchCitationPaperPayload[];
 }
 
+interface PaperFormatStructure {
+  paragraphs: number;
+  tables: number;
+  images: number;
+  formulas: number;
+  sections: number;
+}
+
+interface PaperFormatSelection {
+  path: string;
+  name: string;
+  size: number;
+  modifiedAt: number;
+  structure: PaperFormatStructure;
+}
+
+interface PaperFormatReport {
+  structure: PaperFormatStructure;
+  rules: string[];
+  checks?: string[];
+  warnings: string[];
+  applied?: Record<string, number>;
+  semanticSections?: Record<string, number>;
+  specification?: PaperFormatSpecification;
+}
+
+interface PaperFormatStyleRule {
+  eastAsia?: string;
+  latin?: string;
+  sizePt?: number;
+  bold?: boolean;
+  color?: string;
+  alignment?: "left" | "center" | "right" | "both" | "distribute";
+  lineSpacing?: { mode: "multiple" | "exact"; value: number };
+  firstLineChars?: number;
+  leftIndentChars?: number;
+  hangingChars?: number;
+  spaceBeforePt?: number;
+  spaceAfterPt?: number;
+  pageBreakBefore?: boolean;
+  keepNext?: boolean;
+  keepLines?: boolean;
+  widowControl?: boolean;
+}
+
+interface PaperFormatSpecification extends Record<string, unknown> {
+  page?: Record<string, unknown>;
+  header?: { mode?: string; text?: string; bottomBorder?: boolean; style?: PaperFormatStyleRule; candidates?: string[] };
+  pagination?: Record<string, unknown>;
+  figures?: Record<string, unknown>;
+  toc?: Record<string, unknown>;
+}
+
 interface Window {
   paperLoom?: {
     openDocuments: (readingTheme?: PaperLoomSettings["readingTheme"]) => Promise<OpenDocumentResult[]>;
     readFile: (path: string) => Promise<ArrayBuffer>;
+    selectPaperForFormatting: () => Promise<PaperFormatSelection | null>;
+    analyzePaperFormatting: (payload: { path: string; instructions: string; specification?: PaperFormatSpecification }) => Promise<PaperFormatReport>;
+    exportFormattedPaper: (payload: {
+      path: string;
+      instructions: string;
+      suggestedName?: string;
+      specification?: PaperFormatSpecification;
+    }) => Promise<{ saved: boolean; filePath?: string; report: PaperFormatReport }>;
+    exportPaperFormatConfiguration: (payload: {
+      name?: string;
+      instructions: string;
+      specification: PaperFormatSpecification;
+    }) => Promise<{ saved: boolean; filePath?: string }>;
+    importPaperFormatConfiguration: () => Promise<null | {
+      kind: "paperloom.paper-format";
+      schemaVersion: 1;
+      name: string;
+      instructions: string;
+      specification: PaperFormatSpecification;
+      filePath: string;
+      fileName: string;
+    }>;
     getSettings: () => Promise<PaperLoomSettings>;
     saveSettings: (settings: PaperLoomSettings) => Promise<PaperLoomSettings>;
     getUpdateStatus: () => Promise<UpdateStatusPayload>;

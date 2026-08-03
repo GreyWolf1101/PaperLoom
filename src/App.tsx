@@ -4769,9 +4769,9 @@ function OnboardingGuide({
       target: '[data-tour="tools-workspace"]',
       placement: "right" as OnboardingPlacement,
       location: tr("左侧工作区入口的“实用工具”", "Utilities entry in the left workspace navigation"),
-      title: tr("从公式工坊开始使用研究工具", "Start with the Formula Workshop"),
-      description: tr("实用工具目前提供公式图片与手写内容识别、自然语言生成、符号编写和 Word 原生公式导出。点击这里进入，识别功能使用你在设置中配置的 AI 模型，编辑与导出在本地完成。", "Utilities now includes formula image and handwriting recognition, natural-language generation, symbol composition and native Word equation export. Recognition uses your configured AI model; editing and export stay local."),
-      points: [tr("上传、拖入或粘贴公式截图", "Upload, drop or paste a formula image"), tr("点击数字、字母和结构编写复杂公式", "Compose complex equations with symbols and structures"), tr("导出可继续编辑的 Word 标准公式", "Export an editable native Word equation")],
+      title: tr("使用公式工坊与论文格式编排", "Use Formula Workshop and Paper Formatting"),
+      description: tr("实用工具包含公式识别与编写，以及论文格式编排。你可以导入 DOCX、用自然语言说明学校或期刊格式，再另存为排版后的可编辑论文；格式修改在本地完成，不会上传论文内容。", "Utilities includes formula recognition and composition plus paper formatting. Import a DOCX, describe a school or journal style in plain language, then save a separately formatted editable paper. Formatting stays local and does not upload the paper."),
+      points: [tr("在顶部切换“公式工坊”与“论文格式编排”", "Switch between Formula Workshop and Paper Formatting at the top"), tr("导入 DOCX 并写明字体、字号、行距与页边距", "Import a DOCX and specify fonts, sizes, spacing and margins"), tr("确认修改预览后另存新文件，保留原稿", "Review changes and save a new file while preserving the original")],
     },
     {
       icon: BookOpen,

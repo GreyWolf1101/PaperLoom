@@ -41,10 +41,12 @@ import {
   type FormulaSymbol,
 } from "./formula";
 import type { VisualFormulaEditorHandle } from "./VisualFormulaEditor";
+import PaperFormatter from "./PaperFormatter";
 
 const VisualFormulaEditor = lazy(() => import("./VisualFormulaEditor"));
 
 type FormulaMode = "image" | "describe" | "compose";
+type UtilityTool = "formula" | "paper-format";
 
 type UtilitiesWorkspaceProps = {
   language: AppLanguage;
@@ -128,6 +130,31 @@ function FormulaKeycap({ symbol, onClick }: { symbol: FormulaSymbol; onClick: ()
   );
 }
 
+function UtilityToolNavigation({
+  active,
+  onChange,
+  tr,
+}: {
+  active: UtilityTool;
+  onChange: (tool: UtilityTool) => void;
+  tr: (cn: string, en: string) => string;
+}) {
+  return (
+    <nav className="utility-tool-navigation" aria-label={tr("实用工具列表", "Utility tools")}>
+      <div>
+        <span className="eyebrow">PAPERLOOM UTILITIES</span>
+        <strong>{tr("实用工具", "Utilities")}</strong>
+      </div>
+      <button type="button" className={active === "formula" ? "active" : ""} onClick={() => onChange("formula")}>
+        <span><Sigma size={17} /></span><div><strong>{tr("公式工坊", "Formula Workshop")}</strong><small>{tr("识别、编写与 Word 导出", "Recognize, compose and export")}</small></div>
+      </button>
+      <button type="button" className={active === "paper-format" ? "active" : ""} onClick={() => onChange("paper-format")}>
+        <span><FileText size={17} /></span><div><strong>{tr("论文格式编排", "Paper Formatting")}</strong><small>{tr("按格式说明修改 DOCX", "Apply requirements to DOCX")}</small></div>
+      </button>
+    </nav>
+  );
+}
+
 export default function UtilitiesWorkspace({
   language,
   ensureAIReady,
@@ -137,6 +164,7 @@ export default function UtilitiesWorkspace({
   const zh = language === "zh-CN";
   const tr = (cn: string, en: string) => zh ? cn : en;
   const initialDraft = useMemo(getInitialDraft, []);
+  const [activeTool, setActiveTool] = useState<UtilityTool>("formula");
   const [mode, setMode] = useState<FormulaMode>("image");
   const [latex, setLatex] = useState(initialDraft.latex);
   const [equationNumber, setEquationNumber] = useState(initialDraft.equationNumber);
@@ -366,8 +394,18 @@ export default function UtilitiesWorkspace({
   ];
   const activeSymbolGroup = FORMULA_SYMBOL_GROUPS.find((group) => group.id === symbolGroupId) || FORMULA_SYMBOL_GROUPS[0];
 
+  if (activeTool === "paper-format") {
+    return (
+      <section className="utilities-workspace paper-format-workshop">
+        <UtilityToolNavigation active={activeTool} onChange={setActiveTool} tr={tr} />
+        <PaperFormatter language={language} notify={notify} />
+      </section>
+    );
+  }
+
   return (
     <section className="utilities-workspace formula-workshop">
+      <UtilityToolNavigation active={activeTool} onChange={setActiveTool} tr={tr} />
       <header className="utilities-hero formula-hero">
         <div className="formula-hero-mark"><Sigma size={31} /></div>
         <div>

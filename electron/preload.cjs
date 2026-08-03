@@ -3,6 +3,11 @@ const { contextBridge, ipcRenderer } = require("electron");
 contextBridge.exposeInMainWorld("paperLoom", {
   openDocuments: (readingTheme) => ipcRenderer.invoke("documents:open", readingTheme),
   readFile: (filePath) => ipcRenderer.invoke("documents:read", filePath),
+  selectPaperForFormatting: () => ipcRenderer.invoke("paper-format:select"),
+  analyzePaperFormatting: (payload) => ipcRenderer.invoke("paper-format:analyze", payload),
+  exportFormattedPaper: (payload) => ipcRenderer.invoke("paper-format:export", payload),
+  exportPaperFormatConfiguration: (payload) => ipcRenderer.invoke("paper-format:config-export", payload),
+  importPaperFormatConfiguration: () => ipcRenderer.invoke("paper-format:config-import"),
   getSettings: () => ipcRenderer.invoke("settings:get"),
   saveSettings: (settings) => ipcRenderer.invoke("settings:save", settings),
   getUpdateStatus: () => ipcRenderer.invoke("updates:status"),

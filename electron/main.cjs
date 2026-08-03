@@ -6,6 +6,16 @@ const { searchAcademicLiterature } = require("./academic-search.cjs");
 const { searchBooks: searchBookCatalogs } = require("./book-search.cjs");
 const { getCitationGraph, resolveReference } = require("./research-services.cjs");
 const { createEquationDocx, latexToOmml } = require("./formula-export.cjs");
+const {
+  MAX_DOCX_BYTES,
+  MAX_FORMAT_CONFIG_BYTES,
+  analyzePaperFormatting,
+  createPaperFormatConfiguration,
+  formatPaperDocx,
+  formattedPaperName,
+  inspectPaperDocx,
+  parsePaperFormatConfiguration,
+} = require("./paper-format.cjs");
 const { createUpdateManager } = require("./update-manager.cjs");
 const {
   baiduTranslationSignature,
@@ -1253,6 +1263,88 @@ app.whenReady().then(() => {
   ipcMain.handle("documents:read", async (_event, filePath) => {
     const data = await fs.readFile(filePath);
     return data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+  });
+
+  ipcMain.handle("paper-format:select", async () => {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: "导入需要排版的论文",
+      properties: ["openFile"],
+      filters: [{ name: "Microsoft Word", extensions: ["docx"] }],
+    });
+    if (result.canceled || !result.filePaths[0]) return null;
+    const filePath = path.resolve(result.filePaths[0]);
+    if (path.extname(filePath).toLowerCase() !== ".docx") throw new Error("论文格式编排目前仅支持 DOCX 文件");
+    const stat = await fs.stat(filePath);
+    if (!stat.isFile() || stat.size <= 0 || stat.size > MAX_DOCX_BYTES) throw new Error("Word 文件为空或超过 200 MB");
+    const buffer = await fs.readFile(filePath);
+    return {
+      path: filePath,
+      name: path.basename(filePath),
+      size: stat.size,
+      modifiedAt: stat.mtimeMs,
+      structure: await inspectPaperDocx(buffer),
+    };
+  });
+
+  ipcMain.handle("paper-format:analyze", async (_event, payload) => {
+    const filePath = path.resolve(String(payload?.path || ""));
+    if (!filePath || path.extname(filePath).toLowerCase() !== ".docx") throw new Error("请选择有效的 DOCX 论文");
+    const buffer = await fs.readFile(filePath);
+    return analyzePaperFormatting(buffer, payload?.instructions, payload?.specification);
+  });
+
+  ipcMain.handle("paper-format:export", async (_event, payload) => {
+    const inputPath = path.resolve(String(payload?.path || ""));
+    if (!inputPath || path.extname(inputPath).toLowerCase() !== ".docx") throw new Error("请选择有效的 DOCX 论文");
+    const input = await fs.readFile(inputPath);
+    const formatted = await formatPaperDocx(input, payload?.instructions, payload?.specification);
+    const result = await dialog.showSaveDialog(mainWindow, {
+      title: "导出已排版论文",
+      defaultPath: formattedPaperName(payload?.suggestedName || path.basename(inputPath)),
+      filters: [{ name: "Microsoft Word", extensions: ["docx"] }],
+    });
+    if (result.canceled || !result.filePath) return { saved: false, report: formatted.report };
+    await fs.writeFile(result.filePath, formatted.buffer);
+    return { saved: true, filePath: result.filePath, report: formatted.report };
+  });
+
+  ipcMain.handle("paper-format:config-export", async (_event, payload) => {
+    const configuration = createPaperFormatConfiguration({
+      name: payload?.name,
+      instructions: payload?.instructions,
+      specification: payload?.specification,
+    });
+    const baseName = String(payload?.name || "论文格式配置")
+      .replace(/\.docx$/i, "")
+      .replace(/[<>:"/\\|?*\x00-\x1f]/g, "-")
+      .slice(0, 100) || "论文格式配置";
+    const result = await dialog.showSaveDialog(mainWindow, {
+      title: "导出论文格式配置",
+      defaultPath: `${baseName}.plformat`,
+      filters: [
+        { name: "PaperLoom 格式配置", extensions: ["plformat"] },
+        { name: "JSON", extensions: ["json"] },
+      ],
+    });
+    if (result.canceled || !result.filePath) return { saved: false };
+    await fs.writeFile(result.filePath, `${JSON.stringify(configuration, null, 2)}\n`, "utf8");
+    return { saved: true, filePath: result.filePath };
+  });
+
+  ipcMain.handle("paper-format:config-import", async () => {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: "导入论文格式配置",
+      properties: ["openFile"],
+      filters: [
+        { name: "PaperLoom 格式配置", extensions: ["plformat", "json"] },
+      ],
+    });
+    if (result.canceled || !result.filePaths[0]) return null;
+    const filePath = path.resolve(result.filePaths[0]);
+    const stat = await fs.stat(filePath);
+    if (!stat.isFile() || stat.size <= 0 || stat.size > MAX_FORMAT_CONFIG_BYTES) throw new Error("格式配置文件为空或超过 2 MB");
+    const configuration = parsePaperFormatConfiguration(await fs.readFile(filePath));
+    return { ...configuration, filePath, fileName: path.basename(filePath) };
   });
 
   ipcMain.handle("settings:get", getSettings);
