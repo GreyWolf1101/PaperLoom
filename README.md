@@ -8,7 +8,7 @@ PaperLoom 是一款本地优先的 Windows 桌面阅读与研究工作台，面�
 
 ## 下载 PaperLoom
 
-软件下载、便携版、安装版、校验文件和更新说明统一发布在独立的 Releases 仓库。下面的永久入口会自动指向最新版本，无需随版本号修改：
+软件下载、便携版、安装版、校验文件和更新说明统一发布在独立的 Releases 仓库。
 
 ### **[打开“全部版本与更新说明”官方下载页面](https://github.com/GreyWolf1101/PaperLoom-Releases/releases/latest)**
 
